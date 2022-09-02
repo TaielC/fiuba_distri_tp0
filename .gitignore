@@ -1,6 +1,9 @@
 # Mac
 **.DS_Store
 
+# The docker compose file changes with every build
+docker-compose-dev.yaml
+
 # Executables
 bin/
 

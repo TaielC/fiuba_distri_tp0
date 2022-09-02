@@ -1,7 +1,10 @@
 SHELL := /bin/bash
 PWD := $(shell pwd)
 
+CLIENTS = 1
 GIT_REMOTE = github.com/7574-sistemas-distribuidos/docker-compose-init
+
+-include .env
 
 default: build
 
@@ -12,10 +15,12 @@ deps:
 	go mod vendor
 
 build: deps
-	GOOS=linux go build -o bin/client github.com/7574-sistemas-distribuidos/docker-compose-init/client
+	GOOS=linux go build -o bin/client $(GIT_REMOTE)/client
 .PHONY: build
 
 docker-image:
+	# Use CLIENTS=<number> to set the number of clients (default 1)
+	./scripts/compose_multiple_clients.py ${CLIENTS}
 	docker build -f ./server/Dockerfile -t "server:latest" .
 	docker build -f ./client/Dockerfile -t "client:latest" .
 	# Execute this command from time to time to clean up intermediate stages generated 
