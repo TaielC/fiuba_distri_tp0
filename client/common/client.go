@@ -4,6 +4,9 @@ import (
 	"bufio"
 	"fmt"
 	"net"
+	"os"
+	"os/signal"
+	"syscall"
 	"time"
 
 	log "github.com/sirupsen/logrus"
@@ -55,11 +58,26 @@ func (c *Client) StartClientLoop() {
 	c.createClientSocket()
 	msgID := 1
 
+	// Setup signal channel to receive SIGINT/SIGTERM signals
+	sigChan := make(chan os.Signal, 1)
+	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
+
 loop:
 	// Send messages if the loopLapse threshold has been not surpassed
 	for timeout := time.After(c.config.LoopLapse); ; {
 		select {
 		case <-timeout:
+			log.Errorf(
+				"[CLIENT %v] Loop lapse timeout. Exiting...",
+				c.config.ID,
+			)
+			break loop
+		case s := <-sigChan:
+			log.Errorf(
+				"[CLIENT %v] %v received. Exiting...",
+				c.config.ID,
+				s,
+			)
 			break loop
 		default:
 		}
