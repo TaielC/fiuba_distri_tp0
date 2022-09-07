@@ -31,6 +31,7 @@ func InitConfig() (*viper.Viper, error) {
 
 	// Add env variables supported
 	v.BindEnv("id")
+	v.BindEnv("batchSize")
 	v.BindEnv("server", "address")
 	v.BindEnv("loop", "period")
 	v.BindEnv("loop", "lapse")
@@ -99,6 +100,7 @@ func main() {
 		ID:            v.GetString("id"),
 		LoopLapse:     v.GetDuration("loop.lapse"),
 		LoopPeriod:    v.GetDuration("loop.period"),
+		BatchSize:     v.GetInt("batchSize"),
 	}
 
 	client := common.NewClient(clientConfig)

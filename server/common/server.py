@@ -1,8 +1,9 @@
+from operator import length_hint
 import signal
 import socket
 import logging
 from threading import Event
-from .utils import create_contestant_from_socket
+from .utils import recv_batch, send_int
 
 
 class TerminationSignal(Exception):
@@ -66,16 +67,19 @@ class Server:
         If a problem arises in the communication with the client, the
         client socket will also be closed
         """
-        recived_message_reply = "OK"
-        serialized_reply = (
-            len(recived_message_reply.encode()).to_bytes(4, byteorder="big")
-            + recived_message_reply.encode()
-        )
         try:
-            contestant = create_contestant_from_socket(client_sock)
-            logging.info(f"Received: {contestant}")
+            total = 0
+            while True:
+                batch = recv_batch(client_sock)
+                if batch is None:
+                    break
+                logging.info(f"Received: {len(batch)}")
+                send_int(client_sock, len(batch))
+                total += len(batch)
 
-            client_sock.send(serialized_reply)
+            # Termination message
+            logging.info(f"Total: {total}")
+            send_int(client_sock, 0)
         except OSError as e:
             logging.info(f"Error while reading socket: {e}")
         finally:

@@ -3,8 +3,6 @@ package common
 import (
 	"encoding/binary"
 	"strconv"
-
-	log "github.com/sirupsen/logrus"
 )
 
 type Person struct {
@@ -45,6 +43,14 @@ func (p Person) Serialize() []byte {
 	copy(buf[len(firstName):], lastName)
 	copy(buf[len(firstName)+len(lastName):], id)
 	copy(buf[len(firstName)+len(lastName)+len(id):], birthDate)
-	log.Debugf("Serialized person %v", buf)
+	return buf
+}
+
+func SerializeBatch(batch []Person) []byte {
+	buf := make([]byte, 4)
+	binary.BigEndian.PutUint32(buf, uint32(len(batch)))
+	for _, person := range batch {
+		buf = append(buf, person.Serialize()...)
+	}
 	return buf
 }
