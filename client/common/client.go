@@ -17,6 +17,7 @@ type ClientConfig struct {
 	ServerAddress string
 	LoopLapse     time.Duration
 	LoopPeriod    time.Duration
+	BatchSize     int
 }
 
 // Client Entity that encapsulates how
@@ -63,6 +64,21 @@ func recvCompleteMessage(conn net.Conn, buf []byte) (int, error) {
 	return read, err
 }
 
+func (c *Client) RecvResponse() (int, error) {
+	size_bytes := make([]byte, 4)
+	_, err := recvCompleteMessage(c.conn, size_bytes)
+	if err != nil {
+		return 0, err
+	}
+	size := binary.BigEndian.Uint32(size_bytes)
+	// response := make([]byte, size)
+	// _, err = recvCompleteMessage(c.conn, response)
+	// if err != nil {
+	// 	return err
+	// }
+	return int(size), nil
+}
+
 // StartClientLoop Send messages to the client until some time threshold is met
 func (c *Client) StartClientLoop() {
 	// autoincremental msgID to identify every message sent
@@ -72,20 +88,10 @@ func (c *Client) StartClientLoop() {
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
 
-	// Get env or default for FIRST_NAME
-
-	firstName := os.Getenv("FIRST_NAME")
-	lastName := os.Getenv("LAST_NAME")
-	id := os.Getenv("ID")
-	birthDate := os.Getenv("BIRTH_DATE")
-
-	// Create an array of people
-	people := []Person{
-		CreatePerson(firstName, lastName, id, birthDate),
-	}
+	dataReader := NewDataReader("/data/contestants.csv", int(c.config.BatchSize))
 
 loop:
-	for i, person := range people {
+	for !dataReader.IsAtEnd {
 		select {
 		case s := <-sigChan:
 			log.Errorf(
@@ -97,59 +103,74 @@ loop:
 		default:
 		}
 
+		batch := dataReader.ReadBatch()
+		if len(batch) == 0 {
+			break loop
+		}
+
 		// Send
-		serialized := person.Serialize()
+		serialized := SerializeBatch(batch)
+		// log.Infof(
+		// 	"[CLIENT %v] Sending batch %v",
+		// 	c.config.ID,
+		// 	serialized,
+		// )
 		count, err := c.conn.Write(serialized)
 		if err != nil {
 			log.Errorf(
-				"[CLIENT %v] Error sending message %v. Error: %v",
+				"[CLIENT %v] Error sending message. Error: %v",
 				c.config.ID,
-				i,
 				err,
 			)
 			break loop
 		} else if count != len(serialized) {
 			log.Errorf(
-				"[CLIENT %v] Error sending message %v. Error: %v",
+				"[CLIENT %v] Error sending message. Error: %v",
 				c.config.ID,
-				i,
 				"Could not send all bytes",
 			)
 			break loop
 		}
 
-		size_bytes := make([]byte, 4)
-		_, err = recvCompleteMessage(c.conn, size_bytes)
+		count, err = c.RecvResponse()
 		if err != nil {
 			log.Errorf(
-				"[CLIENT %v] Error receiving message %v. Error: %v",
+				"[CLIENT %v] Error receiving response. Error: %v",
 				c.config.ID,
-				i,
 				err,
 			)
 			break loop
-		}
-		size := binary.BigEndian.Uint32(size_bytes)
-		response := make([]byte, size)
-		_, err = recvCompleteMessage(c.conn, response)
-		if err != nil {
-			log.Errorf(
-				"[CLIENT %v] Error receiving message %v. Error: %v",
+		} else if count != len(batch) {
+			log.Warnf(
+				"[CLIENT %v] The server didn't receive all messages!",
 				c.config.ID,
-				i,
-				err,
 			)
-			break loop
 		}
 		log.Infof(
-			"[CLIENT %v] Received response %v: %v",
+			"[CLIENT %v] Successfully sent batch of %v contestants",
 			c.config.ID,
-			i,
-			string(response),
+			count,
 		)
-
-		// Recreate connection to the server
 	}
 
-	log.Infof("action: loop_finished | result: success | client_id: %v", c.config.ID)
+	log.Infof("[CLIENT %v] loop_finished", c.config.ID)
+
+	end_msg := make([]byte, 4)
+	binary.BigEndian.PutUint32(end_msg, 0)
+	c.conn.Write(end_msg)
+	count, err := c.RecvResponse()
+	if err != nil {
+		log.Errorf(
+			"[CLIENT %v] Error receiving response. Error: %v",
+			c.config.ID,
+			err,
+		)
+	} else if count != 0 {
+		log.Warnf(
+			"[CLIENT %v] The server returned a non-zero response at closing handshake!",
+			c.config.ID,
+		)
+	}
+	log.Infof("[CLIENT %v] Closing connection", c.config.ID)
+	c.conn.Close()
 }

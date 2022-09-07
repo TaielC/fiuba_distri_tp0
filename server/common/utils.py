@@ -23,16 +23,19 @@ def recv_all(sock: socket, length: int) -> bytearray:
 
 """ Serialization and Deserialization """
 
+def send_int(sock: socket, i: int, int_size=32):
+    sock.sendall(i.to_bytes(int_size // 8, "big"))
 
-def recv_string(sock):
+
+def recv_string(sock: socket):
     s = recv_all(
         sock,
-        recv_uint(sock),
+        recv_int(sock),
     ).decode()
     return s
 
 
-def recv_uint(sock, int_size=32):
+def recv_int(sock: socket, int_size=32):
     b = recv_all(sock, int_size // 8)
     i = int.from_bytes(b, byteorder="big")
     return i
@@ -83,6 +86,15 @@ def load_bets() -> list[Bet]:
         reader = csv.reader(file, quoting=csv.QUOTE_MINIMAL)
         for row in reader:
             yield Bet(row[0], row[1], row[2], row[3], row[4], row[5])
+
+
+def recv_batch(sock: socket) -> list:
+    count = recv_int(sock)
+    if count == 0:
+        return None
+    return [create_contestant_from_socket(sock) for _ in range(count)]
+
+
 """ Winners storage location. """
 STORAGE = "./winners"
 
@@ -107,14 +119,18 @@ class Contestant:
     def __str__(self):
         return str(self.tuple())
 
+    def __repr__(self) -> str:
+        return str(self)
 
-def create_contestant_from_socket(sock):
-    return Contestant(
+
+def create_contestant_from_socket(sock: socket):
+    c = Contestant(
         recv_string(sock),
         recv_string(sock),
-        recv_uint(sock, int_size=64),
+        recv_int(sock, int_size=64),
         recv_string(sock),
     )
+    return c
 
 
 """ Checks whether a contestant is a winner or not. """
