@@ -2,6 +2,8 @@ import signal
 import socket
 import logging
 from threading import Event
+from .utils import create_contestant_from_socket
+
 
 class TerminationSignal(Exception):
     pass
@@ -12,6 +14,7 @@ def _set_sigterm_handler():
     Setup SIGTERM signal handler. Raises StopServer exception when SIGTERM
     signal is received
     """
+
     def signal_handler(_signum, _frame):
         logging.info("SIGTERM received")
         raise TerminationSignal()
@@ -23,20 +26,17 @@ class Server:
     def __init__(self, port, listen_backlog):
         # Initialize server socket
         self._server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        self._server_socket.bind(('', port))
+        self._server_socket.bind(("", port))
         self._server_socket.listen(listen_backlog)
 
     def run(self, set_sigterm_handler=True):
         """
-        Dummy Server loop
-
-        Server that accept a new connections and establishes a
-        communication with a client. After client with communucation
-        finishes, servers starts to accept new connections again
+        Server loop
         """
+        logging.info("Server started")
         if set_sigterm_handler:
             _set_sigterm_handler()
-        
+
         try:
             while True:
                 client_sock = self.__accept_new_connection()
@@ -44,7 +44,7 @@ class Server:
         # Handle SIGINT signal
         except (KeyboardInterrupt, TerminationSignal) as e:
             logging.info(f"Interrupt received. Stopping server {e}")
-        
+
         self._shutdown()
 
     def _stay_alive(self):
@@ -66,15 +66,18 @@ class Server:
         If a problem arises in the communication with the client, the
         client socket will also be closed
         """
+        recived_message_reply = "OK"
+        serialized_reply = (
+            len(recived_message_reply.encode()).to_bytes(4, byteorder="big")
+            + recived_message_reply.encode()
+        )
         try:
-            # TODO: Modify the receive to avoid short-reads
-            msg = client_sock.recv(1024).rstrip().decode('utf-8')
-            addr = client_sock.getpeername()
-            logging.info(f'action: receive_message | result: success | ip: {addr[0]} | msg: {msg}')
-            # TODO: Modify the send to avoid short-writes
-            client_sock.send("{}\n".format(msg).encode('utf-8'))
+            contestant = create_contestant_from_socket(client_sock)
+            logging.info(f"Received: {contestant}")
+
+            client_sock.send(serialized_reply)
         except OSError as e:
-            logging.error("action: receive_message | result: fail | error: {e}")
+            logging.info(f"Error while reading socket: {e}")
         finally:
             client_sock.close()
 
@@ -89,5 +92,5 @@ class Server:
         # Connection arrived
         logging.info('action: accept_connections | result: in_progress')
         c, addr = self._server_socket.accept()
-        logging.info(f'action: accept_connections | result: success | ip: {addr[0]}')
+        logging.info("Got connection from {}".format(addr))
         return c
