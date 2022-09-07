@@ -1,8 +1,7 @@
 package common
 
 import (
-	"bufio"
-	"fmt"
+	"encoding/binary"
 	"net"
 	"os"
 	"os/signal"
@@ -51,27 +50,44 @@ func (c *Client) createClientSocket() error {
 	return nil
 }
 
+func recvCompleteMessage(conn net.Conn, buf []byte) (int, error) {
+	var read int
+	var err error
+	for read < len(buf) {
+		n, err := conn.Read(buf[read:])
+		read += n
+		if err != nil {
+			return read, err
+		}
+	}
+	return read, err
+}
+
 // StartClientLoop Send messages to the client until some time threshold is met
 func (c *Client) StartClientLoop() {
 	// Create the connection the server in every loop iteration. Send an
 	// autoincremental msgID to identify every message sent
 	c.createClientSocket()
-	msgID := 1
 
 	// Setup signal channel to receive SIGINT/SIGTERM signals
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
 
+	// Get env or default for FIRST_NAME
+
+	firstName := os.Getenv("FIRST_NAME")
+	lastName := os.Getenv("LAST_NAME")
+	id := os.Getenv("ID")
+	birthDate := os.Getenv("BIRTH_DATE")
+
+	// Create an array of people
+	people := []Person{
+		CreatePerson(firstName, lastName, id, birthDate),
+	}
+
 loop:
-	// Send messages if the loopLapse threshold has been not surpassed
-	for timeout := time.After(c.config.LoopLapse); ; {
+	for i, person := range people {
 		select {
-		case <-timeout:
-			log.Errorf(
-				"[CLIENT %v] Loop lapse timeout. Exiting...",
-				c.config.ID,
-			)
-			break loop
 		case s := <-sigChan:
 			log.Errorf(
 				"[CLIENT %v] %v received. Exiting...",
@@ -83,32 +99,57 @@ loop:
 		}
 
 		// Send
-		fmt.Fprintf(
-			c.conn,
-			"[CLIENT %v] Message N°%v sent\n",
-			c.config.ID,
-			msgID,
-		)
-		msg, err := bufio.NewReader(c.conn).ReadString('\n')
-		msgID++
-
+		serialized := person.Serialize()
+		count, err := c.conn.Write(serialized)
 		if err != nil {
 			log.Errorf(
-				"[CLIENT %v] Error reading from socket. %v.",
+				"[CLIENT %v] Error sending message %v. Error: %v",
 				c.config.ID,
+				i,
 				err,
 			)
-			c.conn.Close()
-			return
+			break loop
+		} else if count != len(serialized) {
+			log.Errorf(
+				"[CLIENT %v] Error sending message %v. Error: %v",
+				c.config.ID,
+				i,
+				"Could not send all bytes",
+			)
+			break loop
 		}
-		log.Infof("[CLIENT %v] Message from server: %v", c.config.ID, msg)
 
-		// Wait a time between sending one message and the next one
-		time.Sleep(c.config.LoopPeriod)
+		size_bytes := make([]byte, 4)
+		_, err = recvCompleteMessage(c.conn, size_bytes)
+		if err != nil {
+			log.Errorf(
+				"[CLIENT %v] Error receiving message %v. Error: %v",
+				c.config.ID,
+				i,
+				err,
+			)
+			break loop
+		}
+		size := binary.BigEndian.Uint32(size_bytes)
+		response := make([]byte, size)
+		_, err = recvCompleteMessage(c.conn, response)
+		if err != nil {
+			log.Errorf(
+				"[CLIENT %v] Error receiving message %v. Error: %v",
+				c.config.ID,
+				i,
+				err,
+			)
+			break loop
+		}
+		log.Infof(
+			"[CLIENT %v] Received response %v: %v",
+			c.config.ID,
+			i,
+			string(response),
+		)
 
 		// Recreate connection to the server
-		c.conn.Close()
-		c.createClientSocket()
 	}
 
 	log.Infof("[CLIENT %v] Closing connection", c.config.ID)
