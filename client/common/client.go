@@ -103,21 +103,26 @@ func (c *Client) RecvResponse() ([]bool, error) {
 	return DeserializeResponse(response), nil
 }
 
-func LogResponse(id string, contestants []Person, response []bool) {
-	total := len(contestants)
-	positive := 0
-	for _, v := range response {
-		if v {
-			positive++
+func LogResults(id string, response []bool, total int) {
+	total_sent := len(response)
+	total_winners := 0
+	for _, winner := range response {
+		if winner {
+			total_winners++
 		}
 	}
 	log.Infof(
-		"[CLIENT %v] Winners: %v/%v (%.2f%%)",
+		"[CLIENT %v] Sent: %v, Winners: %v, Ratio: %v",
 		id,
-		positive,
-		total,
-		100*float64(positive)/float64(total),
+		total_sent,
+		total_winners,
+		float64(total_winners)/float64(total_sent),
 	)
+	if total != total_sent {
+		log.Warnf(
+			"[CLIENT %v] Total sent does not match total requested. Requested: %v, Sent: %v",
+		)
+	}
 }
 
 // StartClientLoop Send messages to the client until some time threshold is met
@@ -140,6 +145,8 @@ func (c *Client) StartClientLoop() {
 		)
 	}
 
+	responses := make([]bool, 0)
+	total_contestants := 0
 loop:
 	for !dataReader.IsAtEnd {
 		select {
@@ -157,6 +164,7 @@ loop:
 		if len(batch) == 0 {
 			break loop
 		}
+		total_contestants += len(batch)
 
 		// Send
 		serialized := SerializeBatch(batch)
@@ -196,12 +204,13 @@ loop:
 				c.config.ID,
 			)
 		}
-		LogResponse(c.config.ID, batch, response)
+		responses = append(responses, response...)
 	}
 
 	end_msg := make([]byte, 4)
 	binary.BigEndian.PutUint32(end_msg, 0)
 	c.conn.Write(end_msg)
 	log.Infof("[CLIENT %v] Closing connection", c.config.ID)
+	LogResults(c.config.ID, responses, total_contestants)
 	c.conn.Close()
 }

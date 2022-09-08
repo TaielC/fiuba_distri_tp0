@@ -4,8 +4,16 @@ import socket
 import logging
 from typing import List
 
+
+from .storage import get_winners_count
 from .winners_calculation import is_winner
-from .serialization import recv_batch, recv_client_name, recv_is_load_request, send_winners
+from .serialization import (
+    recv_batch,
+    recv_client_name,
+    recv_is_load_request,
+    send_winners,
+    send_winners_count,
+)
 from .contestant import Contestant
 
 
@@ -75,7 +83,7 @@ class Server:
             if is_load_request:
                 self._handle_load_request(client_sock)
             else:
-                raise NotImplementedError("Only load requests are supported")
+                self._handle_query_request(client_sock)
 
         except OSError as e:
             logging.info(f"Error while reading socket: {e}")
@@ -97,16 +105,28 @@ class Server:
         logging.info(f"Got load request from {client}")
 
         total = 0
+        batches = 0
         while True:
+            # Syncronic batch behavior
             batch = recv_batch(client_sock)
             if batch is None:
                 break
-            logging.info(f"Received: {len(batch)}")
             winners = self._process_batch(batch)
             send_winners(client_sock, winners)
+            batches += 1
             total += len(batch)
 
-        logging.info(f"Total: {total}")
+        logging.info(f"Received {total} records in {batches} batches from {client}")
+
+    def _handle_query_request(self, client_sock):
+        """
+        Handle query request from client
+        """
+        client = recv_client_name(client_sock)
+        logging.info(f"Got query request from {client}")
+
+        winners_count = get_winners_count(client)
+        send_winners_count(client_sock, winners_count)
 
     def __accept_new_connection(self):
         """
