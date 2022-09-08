@@ -13,29 +13,149 @@ from jinja2 import Environment, FileSystemLoader
 
 
 def load_yaml_template(template_file: Path, params: dict) -> str:
-    env = Environment(loader=FileSystemLoader('/'))
+    env = Environment(loader=FileSystemLoader("/"))
     template = env.get_template(str(template_file))
     return template.render(**params)
 
 
+NAMES = [
+    "A",
+    "B",
+    "C",
+    "D",
+    "E",
+    "Johns",
+    "Jevi",
+    "Drugstore42",
+    "Sofa",
+    "Audi",
+    "Tiger",
+    "CocaCola",
+    "Hans",
+    "Milk",
+    "Mango",
+    "Chicken",
+    "Pizza",
+    "Duck",
+    "Lion",
+    "Panda",
+    "Sofa",
+    "Couch",
+    "Pizza",
+    "Chicken",
+    "Milk",
+    "Mango",
+    "Audi",
+    "Tiger",
+    "CocaCola",
+    "Hans",
+    "Milk",
+    "Mango",
+    "Chicken",
+    "Pizza",
+    "Duck",
+    "Lion",
+    "Panda",
+    "Sofa",
+    "Couch",
+    "Pizza",
+    "Chicken",
+    "Milk",
+    "Mango",
+    "Audi",
+    "Tiger",
+    "CocaCola",
+    "Hans",
+    "Milk",
+    "Mango",
+    "Chicken",
+    "Pizza",
+    "Duck",
+    "Lion",
+    "Panda",
+    "Sofa",
+    "Couch",
+    "Pizza",
+    "Chicken",
+    "Milk",
+    "Mango",
+    "Audi",
+    "Tiger",
+    "CocaCola",
+    "Hans",
+    "Milk",
+    "Mango",
+    "Chicken",
+    "Pizza",
+    "Duck",
+    "Lion",
+    "Panda",
+    "Sofa",
+    "Couch",
+    "Pizza",
+    "Chicken",
+    "Milk",
+    "Mango",
+    "Audi",
+    "Tiger",
+    "CocaCola",
+    "Hans",
+    "Milk",
+    "Mango",
+    "Chicken",
+    "Pizza",
+    "Duck",
+    "Lion",
+    "Panda",
+    "Sofa",
+    "Couch",
+    "Pizza",
+    "Chicken",
+    "Milk",
+    "Mango",
+    "Audi",
+    "Tiger",
+    "CocaCola",
+    "Hans",
+    "Milk",
+    "Mango",
+    "Chicken",
+    "Pizza",
+    "Duck",
+]
+
+
+def fun_client_id(id: int):
+    """Get a name of the buissness sending the request"""
+    return NAMES[id % len(NAMES)]
+
+
 def main(argv):
     if len(argv) != 2:
-        print('Usage: compose_multiple_clients.py <number of clients>')
+        print("Usage: compose_multiple_clients.py <number of clients>")
         return 1
-    
+
     try:
         num_clients = int(argv[1])
     except ValueError:
-        print('The number of clients must be an integer')
+        print("The number of clients must be an integer")
         return 1
-    
-    root_dir = Path(__file__).parent.parent
-    template_file = root_dir / 'scripts/docker-compose-dev.yaml.j2'
-    compose_file =  root_dir / 'docker-compose-dev.yaml'
 
-    yaml_config = load_yaml_template(template_file, {'num_clients': num_clients})
+    root_dir = Path(__file__).parent.parent
+    template_file = root_dir / "scripts/docker-compose-dev.yaml.j2"
+    compose_file = root_dir / "docker-compose-dev.yaml"
+
+    yaml_config = load_yaml_template(
+        template_file,
+        {
+            "num_clients": num_clients,
+            "fun_client_id": fun_client_id,
+        },
+    )
     compose_file.write_text(yaml_config)
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     from sys import argv
+
     main(argv)

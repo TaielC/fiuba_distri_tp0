@@ -13,6 +13,7 @@ services:
       - testing_net
     volumes:
       - ./server/config.ini:/config.ini:ro
+      - ./server/data:/winners:rw
 
   {% for i in range(1, num_clients + 1) %}
   client{{ i }}:
@@ -20,7 +21,7 @@ services:
     image: client:latest
     entrypoint: /client
     environment:
-      - CLI_ID={{ i }}
+      - CLI_ID={{ fun_client_id(i) }}
       - CLI_SERVER_ADDRESS=server:12345
       - CLI_LOOP_LAPSE=1m2s
       - CLI_LOG_LEVEL=DEBUG
