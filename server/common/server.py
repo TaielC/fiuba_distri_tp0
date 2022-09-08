@@ -1,11 +1,11 @@
-from operator import length_hint
+from multiprocessing import Event
 import signal
 import socket
 import logging
-from typing import List
+from typing import Iterable, List
 
 
-from .storage import get_winners_count
+from .storage import get_winners_count, persist_winners
 from .winners_calculation import is_winner
 from .serialization import (
     recv_batch,
@@ -40,6 +40,9 @@ class Server:
         self._server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self._server_socket.bind(("", port))
         self._server_socket.listen(listen_backlog)
+        self.persistance_manager = None
+        self._shutdown_event = Event()
+
 
     def run(self, set_sigterm_handler=True):
         """
@@ -90,12 +93,13 @@ class Server:
         finally:
             client_sock.close()
 
-    def _process_batch(self, batch: List[Contestant]) -> List[bool]:
+    def _process_batch(self, client, batch: Iterable[Contestant]) -> List[bool]:
         """
-        Get winners from batch
+        Process a batch of contestants.
         """
-        # TODO: persist winners
-        return [is_winner(c) for c in batch]
+        winners = [is_winner(c) for c in batch]
+        persist_winners((c for c, w in zip(batch, winners) if w), client)
+        return winners
 
     def _handle_load_request(self, client_sock):
         """
@@ -111,7 +115,7 @@ class Server:
             batch = recv_batch(client_sock)
             if batch is None:
                 break
-            winners = self._process_batch(batch)
+            winners = self._process_batch(client, batch)
             send_winners(client_sock, winners)
             batches += 1
             total += len(batch)

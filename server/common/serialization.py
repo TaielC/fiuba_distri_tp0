@@ -2,7 +2,7 @@ import datetime
 import logging
 from socket import socket
 import time
-from typing import List, Optional
+from typing import Iterable, List, Optional
 from .contestant import Contestant
 
 """ Recv all from socket """
@@ -73,7 +73,7 @@ def create_contestant_from_socket(sock: socket):
     return c
 
 
-def recv_batch(sock: socket) -> Optional[List[Contestant]]:
+def recv_batch(sock: socket) -> Optional[Iterable[Contestant]]:
     count = recv_int(sock)
     if count == 0:
         return None
