@@ -8,11 +8,21 @@ from .contestant import Contestant
 """ Recv all from socket """
 
 
+def try_except_os_error(func):
+    def wrapper(*args, **kwargs):
+        try:
+            return func(*args, **kwargs)
+        except OSError as e:
+            logging.info(f"Error while reading socket: {e}")
+
+    return wrapper
+
+
+@try_except_os_error
 def recv_all(sock: socket, length: int) -> bytearray:
     """
     Receive all data from socket
     """
-
     data = b""
     while len(data) < length:
         packet = sock.recv(length - len(data))
@@ -32,6 +42,7 @@ INT_BYTEORDER = "big"
 UINT64_SIZE = 64
 
 
+@try_except_os_error
 def send_int(sock: socket, i: int, int_size=UINT32_SIZE):
     sock.sendall(i.to_bytes(int_size // BYTE_SIZE, byteorder=INT_BYTEORDER))
 
