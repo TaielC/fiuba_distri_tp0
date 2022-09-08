@@ -2,11 +2,10 @@ from operator import length_hint
 import signal
 import socket
 import logging
-from threading import Event
 from typing import List
 
 from .winners_calculation import is_winner
-from .serialization import recv_batch, send_goodbye, send_winners
+from .serialization import recv_batch, recv_client_name, recv_is_load_request, send_winners
 from .contestant import Contestant
 
 
@@ -72,19 +71,12 @@ class Server:
         client socket will also be closed
         """
         try:
-            total = 0
-            while True:
-                batch = recv_batch(client_sock)
-                if batch is None:
-                    break
-                logging.info(f"Received: {len(batch)}")
-                winners = self._process_batch(batch)
-                send_winners(client_sock, winners)
-                total += len(batch)
+            is_load_request = recv_is_load_request(client_sock)
+            if is_load_request:
+                self._handle_load_request(client_sock)
+            else:
+                raise NotImplementedError("Only load requests are supported")
 
-            # Termination message
-            logging.info(f"Total: {total}")
-            send_goodbye(client_sock)
         except OSError as e:
             logging.info(f"Error while reading socket: {e}")
         finally:
@@ -96,6 +88,25 @@ class Server:
         """
         # TODO: persist winners
         return [is_winner(c) for c in batch]
+
+    def _handle_load_request(self, client_sock):
+        """
+        Handle load request from client
+        """
+        client = recv_client_name(client_sock)
+        logging.info(f"Got load request from {client}")
+
+        total = 0
+        while True:
+            batch = recv_batch(client_sock)
+            if batch is None:
+                break
+            logging.info(f"Received: {len(batch)}")
+            winners = self._process_batch(batch)
+            send_winners(client_sock, winners)
+            total += len(batch)
+
+        logging.info(f"Total: {total}")
 
     def __accept_new_connection(self):
         """

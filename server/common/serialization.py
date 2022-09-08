@@ -22,7 +22,7 @@ def recv_all(sock: socket, length: int) -> bytearray:
     return data
 
 
-""" Serialization and Deserialization """
+""" Serialization and Deserialization of basic types """
 
 
 def send_int(sock: socket, i: int, int_size=32):
@@ -43,6 +43,17 @@ def recv_int(sock: socket, int_size=32):
     return i
 
 
+""" Serialization and Deserialization of Buisness Logic """
+
+
+def recv_is_load_request(sock: socket):
+    return bool(recv_int(sock, int_size=8))
+
+
+def recv_client_name(sock: socket):
+    return recv_string(sock)
+
+
 def recv_batch(sock: socket) -> Optional[List[Contestant]]:
     count = recv_int(sock)
     if count == 0:
@@ -54,10 +65,6 @@ def send_winners(sock: socket, winners: List[bool]):
     send_int(sock, len(winners))
     for winner in winners:
         send_int(sock, int(winner), int_size=8)
-
-
-def send_goodbye(sock: socket):
-    send_winners(sock, [])
 
 
 def create_contestant_from_socket(sock: socket):
