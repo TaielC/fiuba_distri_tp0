@@ -90,9 +90,9 @@ func DeserializeLoadResponse(buf []byte) []bool {
 	return response
 }
 
-func (c *Client) RecvResponse() ([]bool, error) {
+func RecvLoadResponse(conn net.Conn) ([]bool, error) {
 	size_bytes := make([]byte, 4)
-	_, err := RecvCompleteMessage(c.conn, size_bytes)
+	_, err := RecvCompleteMessage(conn, size_bytes)
 	if err != nil {
 		return nil, err
 	}
@@ -101,11 +101,30 @@ func (c *Client) RecvResponse() ([]bool, error) {
 		return nil, nil
 	}
 	response := make([]byte, size)
-	_, err = RecvCompleteMessage(c.conn, response)
+	_, err = RecvCompleteMessage(conn, response)
 	if err != nil {
 		return nil, err
 	}
 	return DeserializeLoadResponse(response), nil
+}
+
+func DeserializeQueryResponse(buf []byte) uint64 {
+	return binary.BigEndian.Uint64(buf)
+}
+
+func RecvQueryResponse(conn net.Conn) (bool, uint64, error) {
+	response := make([]byte, 8)
+	_, err := RecvCompleteMessage(conn, response)
+	if err != nil {
+		return false, 0, err
+	}
+	count := DeserializeQueryResponse(response)
+	count_int := int64(count)
+	is_partial := count_int < 0
+	if is_partial {
+		count_int = -count_int
+	}
+	return is_partial, uint64(count_int), nil
 }
 
 func LogResults(id string, response []bool, total int) {
@@ -195,12 +214,12 @@ loop:
 			break loop
 		}
 
-		response, res_err := c.RecvResponse()
-		if res_err != nil {
+		response, err := RecvLoadResponse(c.conn)
+		if err != nil {
 			log.Errorf(
 				"[CLIENT %v] Error receiving response. Error: %v",
 				c.config.ID,
-				res_err,
+				err,
 			)
 			break loop
 		} else if len(response) != len(batch) {
@@ -215,7 +234,45 @@ loop:
 	end_msg := make([]byte, 4)
 	binary.BigEndian.PutUint32(end_msg, 0)
 	c.conn.Write(end_msg)
-	log.Infof("[CLIENT %v] Closing connection", c.config.ID)
+	log.Infof("[CLIENT %v] Closing load connection", c.config.ID)
 	LogResults(c.config.ID, responses, total_contestants)
 	c.conn.Close()
+
+	partial := true
+	max_time := 60 * time.Second
+	sleep_time := 1 * time.Second
+	for partial {
+		// Check the total results
+		sleep_time = sleep_time * 2
+		if sleep_time > max_time {
+			sleep_time = max_time
+		}
+		time.Sleep(sleep_time)
+		c.createClientSocket()
+		err = SendQueryRequest(c.conn, "*")
+		if err != nil {
+			log.Fatalf(
+				"[CLIENT %v] Could not send query request. Error: %v",
+				c.config.ID,
+				err,
+			)
+		}
+
+		is_partial, count, err := RecvQueryResponse(c.conn)
+		if err != nil {
+			log.Errorf(
+				"[CLIENT %v] Error receiving response. Error: %v",
+				c.config.ID,
+				err,
+			)
+		}
+		log.Infof(
+			"[CLIENT %v] Total winners: (partial? %v) %v",
+			c.config.ID,
+			is_partial,
+			count,
+		)
+		partial = is_partial
+		c.conn.Close()
+	}
 }
