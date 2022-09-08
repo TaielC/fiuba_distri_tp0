@@ -43,8 +43,10 @@ INT64_SIZE = 64
 
 
 @try_except_os_error
-def send_int(sock: socket, i: int, int_size=INT32_SIZE):
-    sock.sendall(i.to_bytes(int_size // BYTE_SIZE, byteorder=INT_BYTEORDER))
+def send_int(sock: socket, i: int, int_size=INT32_SIZE, signed=False):
+    sock.sendall(
+        i.to_bytes(int_size // BYTE_SIZE, byteorder=INT_BYTEORDER, signed=signed)
+    )
 
 
 def recv_string(sock: socket):
@@ -98,4 +100,4 @@ def send_winners(sock: socket, winners: List[bool]):
 
 
 def send_winners_count(sock: socket, winners_count: int):
-    send_int(sock, winners_count, int_size=INT64_SIZE)
+    send_int(sock, winners_count, int_size=INT64_SIZE, signed=True)

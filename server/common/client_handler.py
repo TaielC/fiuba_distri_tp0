@@ -14,7 +14,7 @@ from .serialization import (
     send_winners,
     send_winners_count,
 )
-from .storage import get_winners_count, persist_winners
+from .storage import get_winners_count, persist_winners, set_as_working
 from .winners_calculation import is_winner
 
 
@@ -72,20 +72,24 @@ def handle_load_request(sock: socket, client: str):
     """
     logging.info(f"[HandlerThread {getpid()}] LOAD from {client}")
 
-    total = 0
-    batches = 0
-    while True:
-        # Syncronic batch behavior
-        batch = recv_batch(sock)
-        if batch is None:
-            break
-        winners = process_batch(client, batch)
-        send_winners(sock, winners)
-        batches += 1
-        total += len(batch)
+    try:
+        set_as_working(client, True)
 
-    logging.info(f"[HandlerThread {getpid()}] Received {total} records in {batches} batches from {client}")
+        total = 0
+        batches = 0
+        while True:
+            # Syncronic batch behavior
+            batch = recv_batch(sock)
+            if batch is None:
+                break
+            winners = process_batch(client, batch)
+            send_winners(sock, winners)
+            batches += 1
+            total += len(batch)
 
+        logging.info(f"[HandlerThread {getpid()}] Received {total} records in {batches} batches from {client}")
+    finally:
+        set_as_working(client, False)
 
 def handle_query_request(sock: socket, client: str):
     """
