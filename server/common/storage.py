@@ -8,6 +8,24 @@ from .contestant import Contestant
 STORAGE = Path("/winners")
 
 
+def set_as_working(client: str, set: bool) -> None:
+    """Set the client as working."""
+    path = STORAGE / client
+    if not path.exists():
+        path.mkdir(parents=True)
+    with open(path / "working", "w") as file:
+        file.write("1" if set else "0")
+
+
+def is_working(client: str) -> bool:
+    """Check if a client is working."""
+    path = STORAGE / client / "working"
+    if not path.exists():
+        return False
+    with open(path, "r") as file:
+        return bool(int(file.read()))
+
+
 def persist_winners(winners: Iterable[Contestant], client: str) -> None:
     """Persist the information of each winner in the STORAGE file. Not thread-safe/process-safe."""
     path = STORAGE / client
@@ -30,17 +48,29 @@ def persist_winners(winners: Iterable[Contestant], client: str) -> None:
             file.write(str(count))
     return
 
+
 def get_registered_clients():
     """Run through the storage directory and return the list of registered clients."""
     return [f.name for f in STORAGE.iterdir() if f.is_dir()]
 
 
-def get_winners_count(client: str) -> int:
+def get_winners_count_all() -> int:
+    registered_clients = get_registered_clients()
+    total = sum(get_winners_count(c, False) for c in registered_clients)
+    if any(is_working(c) for c in registered_clients):
+        return -total
+    return total
+
+
+def get_winners_count(client: str, check_active=False) -> int:
     """Get the number of winners for a specific client."""
     if client == "*":
-        return sum(get_winners_count(c) for c in get_registered_clients())
+        return get_winners_count_all()
     path = STORAGE / client / "total"
     if not path.exists():
         return 0
     with open(path, "r") as file:
-        return int(file.read())
+        count = int(file.read())
+    if check_active and is_working(client):
+        return -count
+    return count
