@@ -3,7 +3,11 @@ import signal
 import socket
 import logging
 from threading import Event
-from .utils import recv_batch, send_int
+from typing import List
+
+from .winners_calculation import is_winner
+from .serialization import recv_batch, send_goodbye, send_winners
+from .contestant import Contestant
 
 
 class TerminationSignal(Exception):
@@ -74,16 +78,24 @@ class Server:
                 if batch is None:
                     break
                 logging.info(f"Received: {len(batch)}")
-                send_int(client_sock, len(batch))
+                winners = self._process_batch(batch)
+                send_winners(client_sock, winners)
                 total += len(batch)
 
             # Termination message
             logging.info(f"Total: {total}")
-            send_int(client_sock, 0)
+            send_goodbye(client_sock)
         except OSError as e:
             logging.info(f"Error while reading socket: {e}")
         finally:
             client_sock.close()
+
+    def _process_batch(self, batch: List[Contestant]) -> List[bool]:
+        """
+        Get winners from batch
+        """
+        # TODO: persist winners
+        return [is_winner(c) for c in batch]
 
     def __accept_new_connection(self):
         """
