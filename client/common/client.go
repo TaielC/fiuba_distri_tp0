@@ -64,19 +64,47 @@ func recvCompleteMessage(conn net.Conn, buf []byte) (int, error) {
 	return read, err
 }
 
-func (c *Client) RecvResponse() (int, error) {
+func DeserializeResponse(buf []byte) []bool {
+	response := make([]bool, len(buf))
+	for i := 0; i < len(buf); i++ {
+		response[i] = buf[i] == 1
+	}
+	return response
+}
+
+func (c *Client) RecvResponse() ([]bool, error) {
 	size_bytes := make([]byte, 4)
 	_, err := recvCompleteMessage(c.conn, size_bytes)
 	if err != nil {
-		return 0, err
+		return nil, err
 	}
 	size := binary.BigEndian.Uint32(size_bytes)
-	// response := make([]byte, size)
-	// _, err = recvCompleteMessage(c.conn, response)
-	// if err != nil {
-	// 	return err
-	// }
-	return int(size), nil
+	if size == 0 {
+		return nil, nil
+	}
+	response := make([]byte, size)
+	_, err = recvCompleteMessage(c.conn, response)
+	if err != nil {
+		return nil, err
+	}
+	return DeserializeResponse(response), nil
+}
+
+func LogResponse(id string, contestants []Person, response []bool) {
+	total := len(contestants)
+	positive := 0
+	for _, v := range response {
+		if v {
+			positive++
+		}
+	}
+	log.Infof(
+		"[CLIENT %v] Winners: %v/%v (%.2f%%)",
+		id,
+		positive,
+		total,
+		100*float64(positive)/float64(total),
+	)
 }
 
 // StartClientLoop Send messages to the client until some time threshold is met
@@ -133,38 +161,34 @@ loop:
 			break loop
 		}
 
-		count, err = c.RecvResponse()
-		if err != nil {
+		response, res_err := c.RecvResponse()
+		if res_err != nil {
 			log.Errorf(
 				"[CLIENT %v] Error receiving response. Error: %v",
 				c.config.ID,
-				err,
+				res_err,
 			)
 			break loop
-		} else if count != len(batch) {
+		} else if len(response) != len(batch) {
 			log.Warnf(
 				"[CLIENT %v] The server didn't receive all messages!",
 				c.config.ID,
 			)
 		}
-		log.Infof(
-			"[CLIENT %v] Successfully sent batch of %v contestants",
-			c.config.ID,
-			count,
-		)
+		LogResponse(c.config.ID, batch, response)
 	}
 
 	end_msg := make([]byte, 4)
 	binary.BigEndian.PutUint32(end_msg, 0)
 	c.conn.Write(end_msg)
-	count, err := c.RecvResponse()
+	res, err := c.RecvResponse()
 	if err != nil {
 		log.Errorf(
 			"[CLIENT %v] Error receiving response. Error: %v",
 			c.config.ID,
 			err,
 		)
-	} else if count != 0 {
+	} else if len(res) != 0 {
 		log.Warnf(
 			"[CLIENT %v] The server returned a non-zero response at closing handshake!",
 			c.config.ID,
