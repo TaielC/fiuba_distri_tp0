@@ -25,8 +25,15 @@ def recv_all(sock: socket, length: int) -> bytearray:
 """ Serialization and Deserialization of basic types """
 
 
-def send_int(sock: socket, i: int, int_size=32):
-    sock.sendall(i.to_bytes(int_size // 8, "big"))
+BYTE_SIZE = 8
+UINT32_SIZE = 32
+UINT8_SIZE = 8
+INT_BYTEORDER = "big"
+UINT64_SIZE = 64
+
+
+def send_int(sock: socket, i: int, int_size=UINT32_SIZE):
+    sock.sendall(i.to_bytes(int_size // BYTE_SIZE, byteorder=INT_BYTEORDER))
 
 
 def recv_string(sock: socket):
@@ -37,21 +44,33 @@ def recv_string(sock: socket):
     return s
 
 
-def recv_int(sock: socket, int_size=32):
-    b = recv_all(sock, int_size // 8)
-    i = int.from_bytes(b, byteorder="big")
+def recv_int(sock: socket, int_size=UINT32_SIZE):
+    b = recv_all(sock, int_size // BYTE_SIZE)
+    i = int.from_bytes(b, byteorder=INT_BYTEORDER)
     return i
 
 
 """ Serialization and Deserialization of Buisness Logic """
 
+ID_SIZE = UINT64_SIZE
+
 
 def recv_is_load_request(sock: socket):
-    return bool(recv_int(sock, int_size=8))
+    return bool(recv_int(sock, int_size=UINT8_SIZE))
 
 
 def recv_client_name(sock: socket):
     return recv_string(sock)
+
+
+def create_contestant_from_socket(sock: socket):
+    c = Contestant(
+        recv_string(sock),
+        recv_string(sock),
+        recv_int(sock, int_size=ID_SIZE),
+        recv_string(sock),
+    )
+    return c
 
 
 def recv_batch(sock: socket) -> Optional[List[Contestant]]:
@@ -67,11 +86,5 @@ def send_winners(sock: socket, winners: List[bool]):
         send_int(sock, int(winner), int_size=8)
 
 
-def create_contestant_from_socket(sock: socket):
-    c = Contestant(
-        recv_string(sock),
-        recv_string(sock),
-        recv_int(sock, int_size=64),
-        recv_string(sock),
-    )
-    return c
+def send_winners_count(sock: socket, winners_count: int):
+    send_int(sock, winners_count)
