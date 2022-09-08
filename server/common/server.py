@@ -1,69 +1,64 @@
-from multiprocessing import Event
-import signal
-import socket
 import logging
-from typing import Iterable, List
+from multiprocessing.pool import AsyncResult, Pool
+import os
+import socket
+from typing import Dict
 
 
-from .storage import get_winners_count, persist_winners
-from .winners_calculation import is_winner
-from .serialization import (
-    recv_batch,
-    recv_client_name,
-    recv_is_load_request,
-    send_winners,
-    send_winners_count,
-)
-from .contestant import Contestant
-
-
-class TerminationSignal(Exception):
-    pass
-
-
-def _set_sigterm_handler():
-    """
-    Setup SIGTERM signal handler. Raises StopServer exception when SIGTERM
-    signal is received
-    """
-
-    def signal_handler(_signum, _frame):
-        logging.info("SIGTERM received")
-        raise TerminationSignal()
-
-    signal.signal(signal.SIGTERM, signal_handler)
+from .interrupts_handler import try_except_interrupt
+from .client_handler import handle_client_connection
+from .pool import with_pool
 
 
 class Server:
-    def __init__(self, port, listen_backlog):
+    def __init__(self, port, listen_backlog, timeout, thread_pool_size):
         # Initialize server socket
         self._server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self._thread_pool_size = thread_pool_size
+        self._server_socket.settimeout(timeout)
         self._server_socket.bind(("", port))
         self._server_socket.listen(listen_backlog)
-        self.persistance_manager = None
-        self._shutdown_event = Event()
+        self._running_tasks: Dict[str, AsyncResult] = {}
 
-
-    def run(self, set_sigterm_handler=True):
+    def run(self):
         """
         Server loop
         """
-        logging.info("Server started")
-        if set_sigterm_handler:
-            _set_sigterm_handler()
 
-        try:
+        @with_pool(self._thread_pool_size)
+        @try_except_interrupt
+        def run_loop(pool: Pool = None):
             while True:
-                client_sock = self.__accept_new_connection()
-                self.__handle_client_connection(client_sock)
-        # Handle SIGINT signal
-        except (KeyboardInterrupt, TerminationSignal) as e:
-            logging.info(f"Interrupt received. Stopping server {e}")
+                try:
+                    client_sock, addr = self.__accept_new_connection()
+                    res = pool.apply_async(
+                        handle_client_connection, args=(client_sock,)
+                    )
+                    self._running_tasks[addr] = res
+                except socket.timeout:
+                    self.check_done()
 
-        self._shutdown()
+        logging.info("[ServerThread] STARTED")
+        try:
+            run_loop()
+        finally:
+            self._shutdown()
+            logging.info("[ServerThread] Shutting down")
+            self.check_done(True)
 
-    def _stay_alive(self):
-        return not self.shutdown_event.is_set()
+    def check_done(self, wait=False):
+        to_delete = []
+        for addr, task in self._running_tasks.items():
+            if not wait and not task.ready():
+                continue
+            to_delete.append(addr)
+            try:
+                client, request_type = task.get()
+                logging.info(f"[ServerThread] Client {client} finished {request_type}")
+            except Exception as e:
+                logging.error(f"[ServerThread] Error processing {addr}: {e}")
+        for addr in to_delete:
+            self._running_tasks.pop(addr)
 
     def _shutdown(self):
         """
@@ -71,77 +66,14 @@ class Server:
 
         Close server socket and wait for all threads to finish
         """
-        logging.info("Shutting down server")
         self._server_socket.close()
-
-    def __handle_client_connection(self, client_sock):
-        """
-        Read message from a specific client socket and closes the socket
-
-        If a problem arises in the communication with the client, the
-        client socket will also be closed
-        """
-        try:
-            is_load_request = recv_is_load_request(client_sock)
-            if is_load_request:
-                self._handle_load_request(client_sock)
-            else:
-                self._handle_query_request(client_sock)
-
-        except OSError as e:
-            logging.info(f"Error while reading socket: {e}")
-        finally:
-            client_sock.close()
-
-    def _process_batch(self, client, batch: Iterable[Contestant]) -> List[bool]:
-        """
-        Process a batch of contestants.
-        """
-        winners = [is_winner(c) for c in batch]
-        persist_winners((c for c, w in zip(batch, winners) if w), client)
-        return winners
-
-    def _handle_load_request(self, client_sock):
-        """
-        Handle load request from client
-        """
-        client = recv_client_name(client_sock)
-        logging.info(f"Got load request from {client}")
-
-        total = 0
-        batches = 0
-        while True:
-            # Syncronic batch behavior
-            batch = recv_batch(client_sock)
-            if batch is None:
-                break
-            winners = self._process_batch(client, batch)
-            send_winners(client_sock, winners)
-            batches += 1
-            total += len(batch)
-
-        logging.info(f"Received {total} records in {batches} batches from {client}")
-
-    def _handle_query_request(self, client_sock):
-        """
-        Handle query request from client
-        """
-        client = recv_client_name(client_sock)
-        logging.info(f"Got query request from {client}")
-
-        winners_count = get_winners_count(client)
-        send_winners_count(client_sock, winners_count)
+        logging.debug("[ServerThread] Socket closed")
 
     def __accept_new_connection(self):
         """
         Accept new connections
-
-        Function blocks until a connection to a client is made.
-        Then connection created is printed and returned
         """
-
-        # Connection arrived
-        logging.info("Proceed to accept new connections")
+        logging.debug("[ServerThread] Proceed to accept new connections")
         c, addr = self._server_socket.accept()
-        logging.info("Got connection from {}".format(addr))
-        return c
+        logging.info("[ServerThread] Got connection from {}".format(addr))
+        return c, addr

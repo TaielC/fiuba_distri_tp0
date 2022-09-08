@@ -39,7 +39,7 @@ func NewClient(config ClientConfig) *Client {
 // failure, error is printed in stdout/stderr and exit 1
 // is returned
 func (c *Client) createClientSocket() error {
-	conn, err := net.Dial("tcp", c.config.ServerAddress)
+	conn, err := net.DialTimeout("tcp", c.config.ServerAddress, 5*time.Second)
 	if err != nil {
 		log.Fatalf(
 			"[CLIENT %v] Could not connect to server. Error: %v",
@@ -64,20 +64,25 @@ func RecvCompleteMessage(conn net.Conn, buf []byte) (int, error) {
 	return read, err
 }
 
-func SerializeLoadRequest(conn net.Conn, id string) []byte {
+func SerializeRequest(conn net.Conn, id string, t byte) []byte {
 	buf := make([]byte, 5+len(id))
-	buf[0] = 1
+	buf[0] = t
 	binary.BigEndian.PutUint32(buf[1:5], uint32(len(id)))
 	copy(buf[5:], []byte(id))
 	return buf
 }
 
 func SendLoadRequest(conn net.Conn, id string) error {
-	_, err := conn.Write(SerializeLoadRequest(conn, id))
+	_, err := conn.Write(SerializeRequest(conn, id, 1))
 	return err
 }
 
-func DeserializeResponse(buf []byte) []bool {
+func SendQueryRequest(conn net.Conn, id string) error {
+	_, err := conn.Write(SerializeRequest(conn, id, 0))
+	return err
+}
+
+func DeserializeLoadResponse(buf []byte) []bool {
 	response := make([]bool, len(buf))
 	for i := 0; i < len(buf); i++ {
 		response[i] = buf[i] == 1
@@ -100,7 +105,7 @@ func (c *Client) RecvResponse() ([]bool, error) {
 	if err != nil {
 		return nil, err
 	}
-	return DeserializeResponse(response), nil
+	return DeserializeLoadResponse(response), nil
 }
 
 func LogResults(id string, response []bool, total int) {
