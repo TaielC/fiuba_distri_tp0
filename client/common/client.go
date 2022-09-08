@@ -51,7 +51,7 @@ func (c *Client) createClientSocket() error {
 	return nil
 }
 
-func recvCompleteMessage(conn net.Conn, buf []byte) (int, error) {
+func RecvCompleteMessage(conn net.Conn, buf []byte) (int, error) {
 	var read int
 	var err error
 	for read < len(buf) {
@@ -64,6 +64,19 @@ func recvCompleteMessage(conn net.Conn, buf []byte) (int, error) {
 	return read, err
 }
 
+func SerializeLoadRequest(conn net.Conn, id string) []byte {
+	buf := make([]byte, 5+len(id))
+	buf[0] = 1
+	binary.BigEndian.PutUint32(buf[1:5], uint32(len(id)))
+	copy(buf[5:], []byte(id))
+	return buf
+}
+
+func SendLoadRequest(conn net.Conn, id string) error {
+	_, err := conn.Write(SerializeLoadRequest(conn, id))
+	return err
+}
+
 func DeserializeResponse(buf []byte) []bool {
 	response := make([]bool, len(buf))
 	for i := 0; i < len(buf); i++ {
@@ -74,7 +87,7 @@ func DeserializeResponse(buf []byte) []bool {
 
 func (c *Client) RecvResponse() ([]bool, error) {
 	size_bytes := make([]byte, 4)
-	_, err := recvCompleteMessage(c.conn, size_bytes)
+	_, err := RecvCompleteMessage(c.conn, size_bytes)
 	if err != nil {
 		return nil, err
 	}
@@ -83,7 +96,7 @@ func (c *Client) RecvResponse() ([]bool, error) {
 		return nil, nil
 	}
 	response := make([]byte, size)
-	_, err = recvCompleteMessage(c.conn, response)
+	_, err = RecvCompleteMessage(c.conn, response)
 	if err != nil {
 		return nil, err
 	}
@@ -118,6 +131,14 @@ func (c *Client) StartClientLoop() {
 	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
 
 	dataReader := NewDataReader("/data/contestants.csv", int(c.config.BatchSize))
+	err := SendLoadRequest(c.conn, c.config.ID)
+	if err != nil {
+		log.Fatalf(
+			"[CLIENT %v] Could not send load request. Error: %v",
+			c.config.ID,
+			err,
+		)
+	}
 
 loop:
 	for !dataReader.IsAtEnd {
@@ -181,19 +202,6 @@ loop:
 	end_msg := make([]byte, 4)
 	binary.BigEndian.PutUint32(end_msg, 0)
 	c.conn.Write(end_msg)
-	res, err := c.RecvResponse()
-	if err != nil {
-		log.Errorf(
-			"[CLIENT %v] Error receiving response. Error: %v",
-			c.config.ID,
-			err,
-		)
-	} else if len(res) != 0 {
-		log.Warnf(
-			"[CLIENT %v] The server returned a non-zero response at closing handshake!",
-			c.config.ID,
-		)
-	}
 	log.Infof("[CLIENT %v] Closing connection", c.config.ID)
 	c.conn.Close()
 }
