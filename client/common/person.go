@@ -13,18 +13,6 @@ type Cupon struct {
 	Number    uint64
 }
 
-const UINT64_SIZE = 8
-
-// Serialize a string as its length and then the string
-func SerializeString(str string) []byte {
-	serialized_string := []byte(str)
-	size := len(serialized_string)
-	buf := make([]byte, size+4)
-	binary.BigEndian.PutUint32(buf, uint32(size))
-	copy(buf[4:], serialized_string)
-	return buf
-}
-
 func (c Cupon) Serialize() []byte {
 	agency := SerializeString(c.AgencyId)
 	firstName := SerializeString(c.FirstName)
