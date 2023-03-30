@@ -101,26 +101,13 @@ loop:
 		}
 		total_contestants += len(batch)
 
-		// Send
 		serialized := SerializeBatch(batch)
-		// log.Infof(
-		// 	"[CLIENT %v] Sending batch %v",
-		// 	c.config.ID,
-		// 	serialized,
-		// )
-		count, err := c.conn.Write(serialized)
+		err := SendCompleteMessage(c.conn, serialized)
 		if err != nil {
 			log.Errorf(
 				"[CLIENT %v] Error sending message. Error: %v",
 				c.config.ID,
 				err,
-			)
-			break loop
-		} else if count != len(serialized) {
-			log.Errorf(
-				"[CLIENT %v] Error sending message. Error: %v",
-				c.config.ID,
-				"Could not send all bytes",
 			)
 			break loop
 		}
@@ -149,7 +136,7 @@ loop:
 
 	end_msg := make([]byte, 4)
 	binary.BigEndian.PutUint32(end_msg, 0)
-	c.conn.Write(end_msg)
+	SendCompleteMessage(c.conn, end_msg)
 	log.Infof("[CLIENT %v] Closing load connection", c.config.ID)
 	c.conn.Close()
 

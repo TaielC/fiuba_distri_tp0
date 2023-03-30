@@ -30,6 +30,19 @@ func RecvCompleteMessage(conn net.Conn, buf []byte) (int, error) {
 	return read, err
 }
 
+func SendCompleteMessage(conn net.Conn, buf []byte) error {
+	written := 0
+	total := len(buf)
+	for written < total {
+		n, err := conn.Write(buf[written:])
+		written += n
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func SerializeRequest(conn net.Conn, id string, t byte) []byte {
 	buf := make([]byte, 5+len(id))
 	buf[0] = t
@@ -39,12 +52,12 @@ func SerializeRequest(conn net.Conn, id string, t byte) []byte {
 }
 
 func SendLoadRequest(conn net.Conn, id string) error {
-	_, err := conn.Write(SerializeRequest(conn, id, 1))
+	err := SendCompleteMessage(conn, SerializeRequest(conn, id, 1))
 	return err
 }
 
 func SendQueryRequest(conn net.Conn, id string) error {
-	_, err := conn.Write(SerializeRequest(conn, id, 0))
+	err := SendCompleteMessage(conn, SerializeRequest(conn, id, 0))
 	return err
 }
 
