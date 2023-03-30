@@ -19,7 +19,6 @@ build: deps
 .PHONY: build
 
 docker-image:
-	# Use CLIENTS=<number> to set the number of clients (default 1)
 	./scripts/compose_multiple_clients.py ${CLIENTS}
 	docker build -f ./server/Dockerfile -t "server:latest" .
 	docker build -f ./client/Dockerfile -t "client:latest" .
