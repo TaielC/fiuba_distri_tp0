@@ -76,12 +76,12 @@ def recv_client_name(sock: socket):
 
 def create_bet_from_socket(sock: socket):
     c = Bet(
-        recv_string(sock),
-        recv_string(sock),
-        recv_string(sock),
-        str(recv_int(sock, int_size=INT64_SIZE)),
-        recv_string(sock),
-        str(recv_int(sock, int_size=INT64_SIZE)),
+        agency=recv_string(sock),
+        first_name=recv_string(sock),
+        last_name=recv_string(sock),
+        document=str(recv_int(sock, int_size=INT64_SIZE)),
+        birthdate=recv_string(sock),
+        number=str(recv_int(sock, int_size=INT64_SIZE)),
     )
     return c
 
@@ -93,11 +93,18 @@ def recv_batch(sock: socket) -> Optional[List[Bet]]:
     return [create_bet_from_socket(sock) for _ in range(count)]
 
 
-def send_winners(sock: socket, winners: List[bool]):
-    send_int(sock, len(winners))
-    for winner in winners:
-        send_int(sock, int(winner), int_size=8)
+def send_response(sock: socket, count: int):
+    send_int(sock, count, int_size=INT32_SIZE)
 
 
-def send_winners_count(sock: socket, winners_count: int):
-    send_int(sock, winners_count, int_size=INT64_SIZE, signed=True)
+
+def send_winners(sock: socket, winners: Optional[List[int]]):
+    if winners is None:
+        send_int(sock, -1, int_size=INT64_SIZE, signed=True)
+        return
+
+    send_int(sock, len(winners), int_size=INT64_SIZE)
+    bytes = b""
+    for w in winners:
+        bytes += w.to_bytes(INT64_SIZE, byteorder=INT_BYTEORDER, signed=False)
+    sock.sendall(bytes)

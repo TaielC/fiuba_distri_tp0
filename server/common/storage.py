@@ -61,6 +61,12 @@ def set_is_done(client: str, is_done: bool) -> None:
         file.write("0" if is_done else "1")
 
 
+def are_all_done() -> bool:
+    """Check if all clients are done."""
+    return all(is_done(c) for c in get_registered_clients())
+
+
+
 def is_done(client: str) -> bool:
     """Check if a client is working."""
     path = STORAGE / "working" / client
@@ -80,18 +86,13 @@ def get_registered_clients():
     return [f.name for f in (STORAGE / "working").iterdir() if f.is_dir()]
 
 
-def get_winners(client: str, check_active=False) -> int:
+def get_winners(client: str) -> List[int]:
     """Get the number of winners for a specific client."""
-    logging.info(f"Getting winners for {client}")
-    bets = list(load_bets())
-    print(bets[0].agency, bets[0].document, bets[0].number)
-    print(bets[1].agency, bets[1].document, bets[1].number)
-    print(bets[2].agency, bets[2].document, bets[2].number)
 
     winners = list(
         map(
-            lambda b: b.document,
+            lambda b: int(b.document),
             filter(lambda b: b.agency == int(client) and has_won(b), load_bets()),
         )
     )
-    return len(winners)
+    return winners

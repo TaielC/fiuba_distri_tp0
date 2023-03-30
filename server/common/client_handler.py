@@ -9,10 +9,10 @@ from .serialization import (
     recv_is_load_request,
     recv_client_name,
     recv_batch,
+    send_response,
     send_winners,
-    send_winners_count,
 )
-from .storage import get_winners, persist_batch, set_is_done
+from .storage import are_all_done, get_winners, persist_batch, set_is_done
 from .utils import has_won, Bet
 
 
@@ -83,8 +83,8 @@ def handle_load_request(sock: socket, client: str):
             batch = recv_batch(sock)
             if batch is None:
                 break
-            winners = process_batch(client, batch)
-            send_winners(sock, winners)
+            process_batch(client, batch)
+            send_response(sock, len(batch))
             batches += 1
             total += len(batch)
 
@@ -102,6 +102,9 @@ def handle_query_request(sock: socket, client: str):
     Handle query request from client
     """
     logging.info(f"[HandlerThread {getpid()}] QUERY from {client}")
+    if not are_all_done():
+        send_response(sock, -1)
+        return
 
-    winners_count = get_winners(client)
-    send_winners_count(sock, winners_count)
+    winners = get_winners(client)
+    send_winners(sock, winners)
