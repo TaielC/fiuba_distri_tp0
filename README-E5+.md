@@ -23,8 +23,8 @@ Batch de carga de datos:
 ```
 Donde cada cupon (la agencia está dada por el cliente conectado):
 ```
-| first_name | last_name | id (DNI) | birth_date | number |
-| string     | string    | uint64   | string     | uint64 |
+| agency | first_name | last_name | id (DNI) | birth_date | number |
+| string | string     | string    | uint64   | string     | uint64 |
 ```
 
 
