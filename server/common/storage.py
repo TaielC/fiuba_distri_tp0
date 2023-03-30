@@ -91,7 +91,7 @@ def get_winners(client: str, check_active=False) -> int:
     winners = list(
         map(
             lambda b: b.document,
-            filter(lambda b: b.agency == client and has_won(b), load_bets()),
+            filter(lambda b: b.agency == int(client) and has_won(b), load_bets()),
         )
     )
     return len(winners)
