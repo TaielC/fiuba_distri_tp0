@@ -1,7 +1,7 @@
 SHELL := /bin/bash
 PWD := $(shell pwd)
 
-CLIENTS = 1
+CLIENTS = 5
 GIT_REMOTE = github.com/7574-sistemas-distribuidos/docker-compose-init
 
 -include .env

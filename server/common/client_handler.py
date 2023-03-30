@@ -4,8 +4,6 @@ from socket import socket, timeout as SocketTimeout
 from typing import List, Iterable, Tuple
 
 
-
-from .contestant import Contestant
 from .interrupts_handler import TerminationSignal, set_sigterm_handler
 from .serialization import (
     recv_is_load_request,
@@ -15,8 +13,7 @@ from .serialization import (
     send_winners_count,
 )
 from .storage import get_winners_count, persist_winners, set_as_working
-from .winners_calculation import is_winner
-
+from .utils import has_won, Bet
 
 
 def handle_client_connection(sock: socket) -> Tuple[str, str]:
@@ -28,6 +25,7 @@ def handle_client_connection(sock: socket) -> Tuple[str, str]:
         return _handle_client_connection(sock)
     except (KeyboardInterrupt, TerminationSignal) as e:
         logging.info(f"[HandlerThread {getpid()}] Interrupted: {e}")
+        return "", ""
     finally:
         logging.debug(f"[HandlerThread {getpid()}] Closing client socket")
         sock.close()
@@ -52,16 +50,19 @@ def _handle_client_connection(sock: socket) -> Tuple[str, str]:
         else:
             request_type = "query"
             handle_query_request(sock, client)
+        return client, request_type
     except (SocketTimeout, ConnectionResetError) as e:
-        logging.error(f"[HandlerThread {getpid()}] Error while handling {request_type} request from {client}: {e}")
-    return client, request_type
+        logging.error(
+            f"[HandlerThread {getpid()}] Error while handling {request_type} request from {client}: {e}"
+        )
+        return "", ""
 
 
-def process_batch(client, batch: Iterable[Contestant]) -> List[bool]:
+def process_batch(client, batch: Iterable[Bet]) -> List[bool]:
     """
     Process a batch of contestants.
     """
-    winners = [is_winner(c) for c in batch]
+    winners = [has_won(c) for c in batch]
     persist_winners((c for c, w in zip(batch, winners) if w), client)
     return winners
 
@@ -87,9 +88,12 @@ def handle_load_request(sock: socket, client: str):
             batches += 1
             total += len(batch)
 
-        logging.info(f"[HandlerThread {getpid()}] Received {total} records in {batches} batches from {client}")
+        logging.info(
+            f"[HandlerThread {getpid()}] Received {total} records in {batches} batches from {client}"
+        )
     finally:
         set_as_working(client, False)
+
 
 def handle_query_request(sock: socket, client: str):
     """

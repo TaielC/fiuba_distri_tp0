@@ -3,7 +3,7 @@ import logging
 from pathlib import Path
 from typing import Iterable, List
 
-from .contestant import Contestant
+from .utils import Bet
 
 STORAGE = Path("/winners")
 
@@ -26,7 +26,7 @@ def is_working(client: str) -> bool:
         return bool(int(file.read()))
 
 
-def persist_winners(winners: Iterable[Contestant], client: str) -> None:
+def persist_winners(winners: Iterable[Bet], client: str) -> None:
     """Persist the information of each winner in the STORAGE file. Not thread-safe/process-safe."""
     path = STORAGE / client
     if not path.exists():

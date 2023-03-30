@@ -28,19 +28,20 @@ func NewDataReader(path string, batchSize int) *DataReader {
 }
 
 // define read batch
-func (d *DataReader) ReadBatch() []Person {
-	batch := make([]Person, 0)
+func (d *DataReader) ReadBatch(agency Agency) []Cupon {
+	batch := make([]Cupon, 0)
 	for i := 0; i < d.BatchSize; i++ {
 		line, err := d.Reader.Read()
 		if err != nil {
 			d.IsAtEnd = true
 			break
 		}
-		p := CreatePerson(
+		p := agency.CreateCupon(
 			line[1],
 			line[0],
 			line[2],
 			line[3],
+			line[4],
 		)
 		batch = append(batch, p)
 	}

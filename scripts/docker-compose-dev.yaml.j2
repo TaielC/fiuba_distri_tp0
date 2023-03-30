@@ -20,7 +20,7 @@ services:
     image: client:latest
     entrypoint: /client
     environment:
-      - CLI_ID={{ fun_client_id(i) }}
+      - CLI_ID={{i}}
       - CLI_SERVER_ADDRESS=server:12345
       - CLI_LOOP_LAPSE=1m2s
       - CLI_LOG_LEVEL=DEBUG
@@ -30,7 +30,7 @@ services:
       - server
     volumes:
       - ./client/config.yaml:/config.yaml:ro
-      - ./.data/datasets/dataset-{{ ((i - 1) % 5) + 1 }}.csv:/data/contestants.csv:ro
+      - ./.data/dataset/agency-{{ (i % 5) + 1 }}.csv:/data/contestants.csv:ro
   {% endfor %}
 
 networks:

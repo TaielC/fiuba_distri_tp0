@@ -152,6 +152,7 @@ func LogResults(id string, response []bool, total int) {
 // StartClientLoop Send messages to the client until some time threshold is met
 func (c *Client) StartClientLoop() {
 	// autoincremental msgID to identify every message sent
+	agency := Agency{c.config.ID}
 	c.createClientSocket()
 
 	// Setup signal channel to receive SIGINT/SIGTERM signals
@@ -160,6 +161,7 @@ func (c *Client) StartClientLoop() {
 
 	dataReader := NewDataReader("/data/contestants.csv", int(c.config.BatchSize))
 	err := SendLoadRequest(c.conn, c.config.ID)
+	log.Infof("[CLIENT %v] Sent load request (batch size: %v)", c.config.ID, dataReader.BatchSize)
 	if err != nil {
 		log.Fatalf(
 			"[CLIENT %v] Could not send load request. Error: %v",
@@ -183,7 +185,8 @@ loop:
 		default:
 		}
 
-		batch := dataReader.ReadBatch()
+		batch := dataReader.ReadBatch(agency)
+		log.Infof("[CLIENT %v] Read batch of size %v", c.config.ID, len(batch))
 		if len(batch) == 0 {
 			break loop
 		}
@@ -240,8 +243,8 @@ loop:
 	c.conn.Close()
 
 	partial := true
-	max_time := 60 * time.Second
-	sleep_time := 1 * time.Second
+	max_time := c.config.LoopLapse
+	sleep_time := c.config.LoopPeriod
 	for partial {
 		// Check the total results
 		sleep_time = sleep_time * 2

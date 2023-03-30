@@ -2,7 +2,7 @@ import logging
 from multiprocessing.pool import AsyncResult, Pool
 import os
 import socket
-from typing import Dict
+from typing import Dict, Optional
 
 
 from .interrupts_handler import try_except_interrupt
@@ -27,7 +27,10 @@ class Server:
 
         @with_pool(self._thread_pool_size)
         @try_except_interrupt
-        def run_loop(pool: Pool = None):
+        def run_loop(pool: Optional[Pool] = None):
+            if pool is None:
+                raise ValueError("Pool is None")
+
             while True:
                 try:
                     client_sock, addr = self.__accept_new_connection()

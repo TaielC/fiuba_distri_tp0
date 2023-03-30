@@ -1,3 +1,4 @@
+from typing import Iterable
 import csv
 import datetime
 
@@ -43,7 +44,7 @@ def store_bets(bets: list[Bet]) -> None:
 Loads the information all the bets in the STORAGE_FILEPATH file.
 Not thread-safe/process-safe.
 """
-def load_bets() -> list[Bet]:
+def load_bets() -> Iterable[Bet]:
     with open(STORAGE_FILEPATH, 'r') as file:
         reader = csv.reader(file, quoting=csv.QUOTE_MINIMAL)
         for row in reader:

@@ -3,7 +3,7 @@ import logging
 from socket import socket
 import time
 from typing import Iterable, List, Optional
-from .contestant import Contestant
+from .utils import Bet
 
 """ Recv all from socket """
 
@@ -19,7 +19,7 @@ def try_except_os_error(func):
 
 
 @try_except_os_error
-def recv_all(sock: socket, length: int) -> bytearray:
+def recv_all(sock: socket, length: int) -> bytes:
     """
     Receive all data from socket
     """
@@ -65,8 +65,6 @@ def recv_int(sock: socket, int_size=INT32_SIZE):
 
 """ Serialization and Deserialization of Buisness Logic """
 
-ID_SIZE = INT64_SIZE
-
 
 def recv_is_load_request(sock: socket):
     return bool(recv_int(sock, int_size=INT8_SIZE))
@@ -76,21 +74,23 @@ def recv_client_name(sock: socket):
     return recv_string(sock)
 
 
-def create_contestant_from_socket(sock: socket):
-    c = Contestant(
+def create_bet_from_socket(sock: socket):
+    c = Bet(
         recv_string(sock),
         recv_string(sock),
-        recv_int(sock, int_size=ID_SIZE),
         recv_string(sock),
+        str(recv_int(sock, int_size=INT64_SIZE)),
+        recv_string(sock),
+        str(recv_int(sock, int_size=INT64_SIZE)),
     )
     return c
 
 
-def recv_batch(sock: socket) -> Optional[Iterable[Contestant]]:
+def recv_batch(sock: socket) -> Optional[List[Bet]]:
     count = recv_int(sock)
     if count == 0:
         return None
-    return [create_contestant_from_socket(sock) for _ in range(count)]
+    return [create_bet_from_socket(sock) for _ in range(count)]
 
 
 def send_winners(sock: socket, winners: List[bool]):

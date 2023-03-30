@@ -2,25 +2,18 @@ package common
 
 import (
 	"encoding/binary"
-	"strconv"
 )
 
-type Person struct {
+type Cupon struct {
+	AgencyId  string
 	FirstName string
 	LastName  string
 	Id        uint64
 	BirthDate string
+	Number    uint64
 }
 
 const UINT64_SIZE = 8
-
-func CreatePerson(firstName string, lastName string, id string, birthDate string) Person {
-	id_uint64, err := strconv.ParseUint(id, 10, 32)
-	if err != nil {
-		panic(err)
-	}
-	return Person{firstName, lastName, id_uint64, birthDate}
-}
 
 // Serialize a string as its length and then the string
 func SerializeString(str string) []byte {
@@ -32,25 +25,30 @@ func SerializeString(str string) []byte {
 	return buf
 }
 
-func (p Person) Serialize() []byte {
-	firstName := SerializeString(p.FirstName)
-	lastName := SerializeString(p.LastName)
+func (c Cupon) Serialize() []byte {
+	agency := SerializeString(c.AgencyId)
+	firstName := SerializeString(c.FirstName)
+	lastName := SerializeString(c.LastName)
 	id := make([]byte, UINT64_SIZE)
-	binary.BigEndian.PutUint64(id, p.Id)
-	birthDate := SerializeString(p.BirthDate)
-	buf := make([]byte, len(firstName)+len(lastName)+len(id)+len(birthDate))
-	copy(buf, firstName)
-	copy(buf[len(firstName):], lastName)
-	copy(buf[len(firstName)+len(lastName):], id)
-	copy(buf[len(firstName)+len(lastName)+len(id):], birthDate)
+	binary.BigEndian.PutUint64(id, c.Id)
+	birthDate := SerializeString(c.BirthDate)
+	number := make([]byte, UINT64_SIZE)
+	binary.BigEndian.PutUint64(number, c.Number)
+	buf := make([]byte, len(agency)+len(firstName)+len(lastName)+len(id)+len(birthDate)+len(number))
+	copy(buf, agency)
+	copy(buf[len(agency):], firstName)
+	copy(buf[len(agency)+len(firstName):], lastName)
+	copy(buf[len(agency)+len(firstName)+len(lastName):], id)
+	copy(buf[len(agency)+len(firstName)+len(lastName)+len(id):], birthDate)
+	copy(buf[len(agency)+len(firstName)+len(lastName)+len(id)+len(birthDate):], number)
 	return buf
 }
 
-func SerializeBatch(batch []Person) []byte {
+func SerializeBatch(batch []Cupon) []byte {
 	buf := make([]byte, 4)
 	binary.BigEndian.PutUint32(buf, uint32(len(batch)))
-	for _, person := range batch {
-		buf = append(buf, person.Serialize()...)
+	for _, cupon := range batch {
+		buf = append(buf, cupon.Serialize()...)
 	}
 	return buf
 }
