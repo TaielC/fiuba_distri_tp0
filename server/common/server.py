@@ -8,6 +8,7 @@ from typing import Dict, Optional
 from .interrupts_handler import try_except_interrupt
 from .client_handler import handle_client_connection
 from .pool import with_pool
+from .storage import reset_workdir
 
 
 class Server:
@@ -15,22 +16,27 @@ class Server:
         # Initialize server socket
         self._server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self._thread_pool_size = thread_pool_size
-        self._server_socket.settimeout(timeout)
-        self._server_socket.bind(("", port))
-        self._server_socket.listen(listen_backlog)
+        self._port = port
+        self._timeout = timeout
+        self._listen_backlog = listen_backlog
         self._running_tasks: Dict[str, AsyncResult] = {}
 
     def run(self):
         """
         Server loop
         """
+        reset_workdir()
+        self._server_socket.settimeout(self._timeout)
+        self._server_socket.bind(("", self._port))
+        self._server_socket.listen(self._listen_backlog)
 
         @with_pool(self._thread_pool_size)
         @try_except_interrupt
         def run_loop(pool: Optional[Pool] = None):
             if pool is None:
                 raise ValueError("Pool is None")
-
+            
+            logging.info("[ServerThread] Ready to accept new connections")
             while True:
                 try:
                     client_sock, addr = self.__accept_new_connection()

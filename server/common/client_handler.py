@@ -12,7 +12,7 @@ from .serialization import (
     send_winners,
     send_winners_count,
 )
-from .storage import get_winners_count, persist_winners, set_as_working
+from .storage import get_winners, persist_batch, set_is_done
 from .utils import has_won, Bet
 
 
@@ -58,12 +58,12 @@ def _handle_client_connection(sock: socket) -> Tuple[str, str]:
         return "", ""
 
 
-def process_batch(client, batch: Iterable[Bet]) -> List[bool]:
+def process_batch(client, batch: List[Bet]) -> List[bool]:
     """
     Process a batch of contestants.
     """
+    persist_batch(batch, client)
     winners = [has_won(c) for c in batch]
-    persist_winners((c for c, w in zip(batch, winners) if w), client)
     return winners
 
 
@@ -74,7 +74,7 @@ def handle_load_request(sock: socket, client: str):
     logging.info(f"[HandlerThread {getpid()}] LOAD from {client}")
 
     try:
-        set_as_working(client, True)
+        set_is_done(client, True)
 
         total = 0
         batches = 0
@@ -89,10 +89,12 @@ def handle_load_request(sock: socket, client: str):
             total += len(batch)
 
         logging.info(
-            f"[HandlerThread {getpid()}] Received {total} records in {batches} batches from {client}"
+            f"[HandlerThread {getpid()}]"
+            " action: apuestas_almacenadas | result: success "
+            f"| agencia: {client} | apuestas: {total}"
         )
     finally:
-        set_as_working(client, False)
+        set_is_done(client, False)
 
 
 def handle_query_request(sock: socket, client: str):
@@ -101,5 +103,5 @@ def handle_query_request(sock: socket, client: str):
     """
     logging.info(f"[HandlerThread {getpid()}] QUERY from {client}")
 
-    winners_count = get_winners_count(client)
+    winners_count = get_winners(client)
     send_winners_count(sock, winners_count)

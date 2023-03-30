@@ -186,7 +186,6 @@ loop:
 		}
 
 		batch := dataReader.ReadBatch(agency)
-		log.Infof("[CLIENT %v] Read batch of size %v", c.config.ID, len(batch))
 		if len(batch) == 0 {
 			break loop
 		}
@@ -233,7 +232,7 @@ loop:
 		responses = append(responses, response...)
 	}
 
-	log.Infof("[CLIENT %v] loop_finished", c.config.ID)
+	log.Infof("[CLIENT %v] action: apuesta_enviada | result: success | total_sent: %v", c.config.ID, dataReader.TotalRead)
 
 	end_msg := make([]byte, 4)
 	binary.BigEndian.PutUint32(end_msg, 0)

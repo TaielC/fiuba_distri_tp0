@@ -10,6 +10,7 @@ type DataReader struct {
 	File      os.File
 	BatchSize int
 	IsAtEnd   bool
+	TotalRead int
 }
 
 func NewDataReader(path string, batchSize int) *DataReader {
@@ -24,6 +25,7 @@ func NewDataReader(path string, batchSize int) *DataReader {
 		File:      *file,
 		BatchSize: batchSize,
 		IsAtEnd:   false,
+		TotalRead: 0,
 	}
 }
 
@@ -45,5 +47,6 @@ func (d *DataReader) ReadBatch(agency Agency) []Cupon {
 		)
 		batch = append(batch, p)
 	}
+	d.TotalRead += len(batch)
 	return batch
 }
