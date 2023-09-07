@@ -14,7 +14,7 @@ def set_sigterm_handler():
 
     def signal_handler(_signum, _frame):
         logging.info("SIGTERM received")
-        raise TerminationSignal()
+        raise TerminationSignal("SIGTERM received")
 
     signal.signal(signal.SIGTERM, signal_handler)
 

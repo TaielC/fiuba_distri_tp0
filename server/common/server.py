@@ -12,10 +12,18 @@ from .storage import reset_workdir
 
 
 class Server:
-    def __init__(self, port, listen_backlog, timeout, thread_pool_size):
+    def __init__(
+        self,
+        port,
+        listen_backlog,
+        timeout,
+        thread_pool_size,
+        agencies_count,
+    ):
         # Initialize server socket
         self._server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self._thread_pool_size = thread_pool_size
+        self._agencies_count = agencies_count
         self._port = port
         self._timeout = timeout
         self._listen_backlog = listen_backlog
@@ -25,7 +33,7 @@ class Server:
         """
         Server loop
         """
-        reset_workdir()
+        reset_workdir(self._agencies_count)
         self._server_socket.settimeout(self._timeout)
         self._server_socket.bind(("", self._port))
         self._server_socket.listen(self._listen_backlog)
@@ -35,7 +43,7 @@ class Server:
         def run_loop(pool: Optional[Pool] = None):
             if pool is None:
                 raise ValueError("Pool is None")
-            
+
             logging.info("[ServerThread] Ready to accept new connections")
             while True:
                 try:
@@ -62,6 +70,8 @@ class Server:
                 continue
             to_delete.append(addr)
             try:
+                if wait:
+                    print("Waiting for", addr)
                 client, request_type = task.get()
                 logging.info(f"[ServerThread] Client {client} finished {request_type}")
             except Exception as e:

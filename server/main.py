@@ -30,7 +30,7 @@ def initialize_config():
         config_params["logging_level"] = config["DEFAULT"]["logging_level"]
         config_params["timeout"] = int(config["DEFAULT"]["timeout"])
         config_params["thread_pool_size"] = int(config["DEFAULT"]["thread_pool_size"])
-
+        config_params["agencies_count"] = int(config["DEFAULT"]["agencies_count"])
     except KeyError as e:
         raise KeyError("Key was not found. Error: {} .Aborting server".format(e))
     except ValueError as e:
@@ -60,6 +60,7 @@ def main():
         config_params["listen_backlog"],
         config_params["timeout"],
         config_params["thread_pool_size"],
+        config_params["agencies_count"],
     )
     server.run()
 

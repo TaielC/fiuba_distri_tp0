@@ -32,11 +32,13 @@ def lock_file(path: Path):
     return decorator
 
 
-def reset_workdir():
+def reset_workdir(clients_count: int):
     """Clean:
     - /data/bets.csv
     - /data/lock
     - /data/working/*
+    Create files:
+    - /data/working/<client> for each client
     """
     if STORAGE.exists():
         for file in STORAGE.iterdir():
@@ -48,6 +50,8 @@ def reset_workdir():
                 for client in file.iterdir():
                     client.unlink()
                 file.rmdir()
+                for client in range(1, clients_count + 1):
+                    set_is_done(str(client), False)
     else:
         STORAGE.mkdir(parents=True)
 
@@ -66,7 +70,6 @@ def are_all_done() -> bool:
     return all(is_done(c) for c in get_registered_clients())
 
 
-
 def is_done(client: str) -> bool:
     """Check if a client is working."""
     path = STORAGE / "working" / client
@@ -82,7 +85,6 @@ def persist_batch(bets: List[Bet], client: str) -> None:
 
 
 def get_registered_clients():
-    """Run through the storage directory and return the list of registered clients."""
     return [f.name for f in (STORAGE / "working").iterdir() if f.is_dir()]
 
 
