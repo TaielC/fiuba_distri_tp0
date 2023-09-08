@@ -2,6 +2,7 @@
 
 from configparser import ConfigParser
 from common.server import Server
+from common.interrupts_handler import set_sigterm_handler, TerminationSignal
 import logging
 import os
 
@@ -51,8 +52,10 @@ def main():
 
     # Log config parameters at the beginning of the program to verify the configuration
     # of the component
-    logging.debug(f"action: config | result: success | port: {port} | "
-                  f"listen_backlog: {listen_backlog} | logging_level: {logging_level}")
+    logging.debug(
+        f"action: config | result: success | port: {port} | "
+        f"listen_backlog: {listen_backlog} | logging_level: {logging_level}"
+    )
 
     # Initialize server and start server loop
     server = Server(
@@ -62,7 +65,12 @@ def main():
         config_params["thread_pool_size"],
         config_params["agencies_count"],
     )
-    server.run()
+    set_sigterm_handler()
+    try:
+        server.run()
+    except (KeyboardInterrupt, TerminationSignal) as e:
+        logging.info(f"[ServerThread] Received interrupt: {e}")
+
 
 def initialize_log(logging_level):
     """

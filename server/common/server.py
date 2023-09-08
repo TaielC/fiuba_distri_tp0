@@ -5,9 +5,8 @@ import socket
 from typing import Dict, Optional
 
 
-from .interrupts_handler import try_except_interrupt
+from .interrupts_handler import TerminationSignal, set_sigterm_handler
 from .client_handler import handle_client_connection
-from .pool import with_pool
 from .storage import reset_workdir
 
 
@@ -29,6 +28,14 @@ class Server:
         self._listen_backlog = listen_backlog
         self._running_tasks: Dict[str, AsyncResult] = {}
 
+    def _accept_new_connection(self, pool):
+        try:
+            client_sock, addr = self.__accept_new_connection()
+            res = pool.apply_async(handle_client_connection, args=(client_sock,))
+            self._running_tasks[addr] = res
+        except socket.timeout:
+            self.check_done()
+
     def run(self):
         """
         Server loop
@@ -38,27 +45,23 @@ class Server:
         self._server_socket.bind(("", self._port))
         self._server_socket.listen(self._listen_backlog)
 
-        @with_pool(self._thread_pool_size)
-        @try_except_interrupt
-        def run_loop(pool: Optional[Pool] = None):
-            if pool is None:
-                raise ValueError("Pool is None")
-
+        logging.info("[ServerThread] STARTED")
+        pool = None
+        try:
+            pool = Pool(
+                self._thread_pool_size,
+                initializer=set_sigterm_handler,
+            )
             logging.info("[ServerThread] Ready to accept new connections")
             while True:
-                try:
-                    client_sock, addr = self.__accept_new_connection()
-                    res = pool.apply_async(
-                        handle_client_connection, args=(client_sock,)
-                    )
-                    self._running_tasks[addr] = res
-                except socket.timeout:
-                    self.check_done()
-
-        logging.info("[ServerThread] STARTED")
-        try:
-            run_loop()
+                self._accept_new_connection(pool)
+        except (KeyboardInterrupt, TerminationSignal) as e:
+            logging.info(f"[ServerThread] Interrupted: {e}")
+            if pool is not None:
+                pool.close()
         finally:
+            if pool is not None:
+                pool.join()
             self._shutdown()
             logging.info("[ServerThread] Shutting down")
             self.check_done(True)

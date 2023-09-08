@@ -20,14 +20,13 @@ def handle_client_connection(sock: socket) -> Tuple[str, str]:
     """
     Handle client connection
     """
-    set_sigterm_handler()
     try:
         return _handle_client_connection(sock)
     except (KeyboardInterrupt, TerminationSignal) as e:
         logging.info(f"[HandlerThread {getpid()}] Interrupted: {e}")
         return "", ""
     finally:
-        logging.debug(f"[HandlerThread {getpid()}] Closing client socket")
+        logging.info(f"[HandlerThread {getpid()}] Closing client socket")
         sock.close()
 
 
